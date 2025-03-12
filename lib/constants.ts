@@ -4,13 +4,13 @@
 export const TIMER_CONFIG = {
   START_TIME: (() => {
     const date = new Date();
-    date.setHours(21, 0, 0, 0); // 7:30 PM today
+    date.setHours(1, 0, 0, 0); // 1:00 AM today
     return date;
   })(),
   END_TIME: (() => {
     const date = new Date();
-    date.setDate(date.getDate() + 1); // Tomorrow
-    date.setHours(9, 0, 0, 0); // 9:00 AM
+    date.setDate(date.getDate()); // Tomorrow
+    date.setHours(17, 0, 0, 0); // 5:00 PM today
     return date;
   })(),
 } as const;
