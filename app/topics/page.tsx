@@ -3,7 +3,17 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, doc, runTransaction, addDoc, query, where } from "firebase/firestore";
+import { 
+  collection, 
+  getDocs, 
+  doc, 
+  runTransaction, 
+  addDoc, 
+  query, 
+  where, 
+  serverTimestamp,
+  onSnapshot 
+} from "firebase/firestore";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +58,9 @@ export default function TopicSelectionPage() {
     student2: "",
   });
 
+  // Reference to topics collection
+  const topicsRef = React.useMemo(() => collection(db, "topics"), []);
+
   // Check if user has already selected a topic
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -59,24 +72,27 @@ export default function TopicSelectionPage() {
   }, [router]);
 
   React.useEffect(() => {
-    const fetchTopics = async () => {
-      try {
-        const querySnapshot = await getDocs(collection(db, "topics"));
-        const topicsData = querySnapshot.docs.map((doc) => ({
+    // Set up real-time listener for topics
+    const unsubscribe = onSnapshot(topicsRef, 
+      (snapshot) => {
+        const topicsData = snapshot.docs.map((doc) => ({
           id: doc.id,
           title: doc.data().title || "",
           taken: doc.data().taken || false,
         })) as Topic[];
         setTopics(topicsData);
-      } catch (error) {
+        setLoading(false);
+      },
+      (error) => {
         console.error("Error fetching topics:", error);
-        setTopics([]); // Set empty array on error
-      } finally {
+        setTopics([]);
         setLoading(false);
       }
-    };
-    fetchTopics();
-  }, []);
+    );
+
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
+  }, [topicsRef]);
 
   const checkExistingUSNs = async (usn1: string, usn2: string) => {
     try {
@@ -167,6 +183,8 @@ export default function TopicSelectionPage() {
 
       const topicRef = doc(db, "topics", selectedTopic.id);
 
+      let selectionState: TopicSelectionState | null = null;
+
       await runTransaction(db, async (transaction) => {
         const topicDoc = await transaction.get(topicRef);
         if (!topicDoc.exists()) throw new Error("Topic does not exist!");
@@ -178,7 +196,7 @@ export default function TopicSelectionPage() {
 
         transaction.update(topicRef, { taken: true });
 
-        const timestamp = new Date();
+        // Add response with server timestamp
         await addDoc(collection(db, "responses"), {
           topicId: selectedTopic.id,
           topicTitle: selectedTopic.title,
@@ -186,25 +204,31 @@ export default function TopicSelectionPage() {
           student1USN,
           student2Name,
           student2USN,
-          timestamp,
+          timestamp: serverTimestamp(),
         });
 
-        // Save to localStorage
-        const selectionState: TopicSelectionState = {
+        // Prepare selection state but don't save yet
+        selectionState = {
           topicId: selectedTopic.id,
           topicTitle: selectedTopic.title,
           student1Name,
           student1USN,
           student2Name,
           student2USN,
-          timestamp: timestamp.toISOString(),
+          timestamp: new Date().toISOString(), // This will be used only for display
         };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(selectionState));
-
-        router.push("/progress");
       });
+
+      // Only save to localStorage and redirect if the transaction was successful
+      if (selectionState) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(selectionState));
+        router.push("/progress");
+      }
+
     } catch (error) {
       if (error instanceof Error) {
+        // Clear any partial state
+        localStorage.removeItem(STORAGE_KEY);
         alert(error.message);
       }
     } finally {

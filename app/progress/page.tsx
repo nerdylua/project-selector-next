@@ -143,7 +143,7 @@ export default function ProgressPage() {
   return (
     <div className="container py-8">
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
         <StatsCard
           title="Total Topics"
           value={stats.totalTopics}
@@ -162,12 +162,12 @@ export default function ProgressPage() {
           icon={<Users className="w-5 h-5 text-primary" />}
           delay={0.3}
         />
-        <StatsCard
+        {/* <StatsCard
           title="Time Remaining"
           value={`${timeLeft.hours}h ${timeLeft.minutes}m ${timeLeft.seconds}s`}
           icon={<Clock className="w-5 h-5 text-primary" />}
           delay={0.4}
-        />
+        /> */}
       </div>
 
       {/* User Selection Card */}
