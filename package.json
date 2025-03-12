@@ -16,7 +16,6 @@
     "@types/firebase": "^2.4.32",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "cmdk": "^1.0.0",
     "firebase": "^11.4.0",
     "framer-motion": "^12.5.0",
     "lucide-react": "^0.479.0",
