@@ -2,13 +2,18 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { auth, provider } from "@/lib/firebase"; // Ensure Firebase is configured
+import { auth, provider } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { User, signInWithPopup, onAuthStateChanged, signOut } from "firebase/auth";
-
-interface TimerDisplayProps {
-  value: string;
-  label: string;
-}
+import { WelcomeHeader } from "@/components/landing/WelcomeHeader";
+import { TimerDisplay } from "@/components/landing/TimerDisplay";
+import { AuthSection } from "@/components/landing/AuthSection";
+import { StatsCard } from "@/components/landing/StatsCard";
+import { motion } from "framer-motion";
+import { BookOpen, Users, Clock, CheckCircle } from "lucide-react";
+import { STORAGE_KEY } from "@/lib/types";
+import { TIMER_CONFIG } from "@/lib/constants";
 
 interface TimeLeft {
   hours: number;
@@ -16,24 +21,34 @@ interface TimeLeft {
   seconds: number;
 }
 
-const TimerDisplay = ({ value, label }: TimerDisplayProps) => (
-  <div className="relative">
-    <div className="bg-card dark:bg-card/50 rounded-xl p-2 sm:p-4 shadow-md">
-      <span className="text-3xl sm:text-5xl font-bold text-primary">
-        {value}
-      </span>
-      <span className="text-xs sm:text-sm font-medium text-muted-foreground mt-1 block">
-        {label}
-      </span>
-    </div>
-  </div>
-);
+interface Stats {
+  totalTopics: number;
+  availableTopics: number;
+  totalResponses: number;
+  timeLeftPercentage: number;
+}
 
 export default function IndexPage() {
+  const router = useRouter();
   const [timeLeft, setTimeLeft] = useState<TimeLeft>(calculateTimeLeft());
   const [user, setUser] = useState<User | null>(null);
   const [mounted, setMounted] = useState<boolean>(false);
-  const router = useRouter();
+  const [stats, setStats] = useState<Stats>({
+    totalTopics: 0,
+    availableTopics: 0,
+    totalResponses: 0,
+    timeLeftPercentage: 100,
+  });
+
+  // Check if user has already selected a topic
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedState = localStorage.getItem(STORAGE_KEY);
+      if (savedState) {
+        router.push('/progress');
+      }
+    }
+  }, [router]);
 
   useEffect(() => {
     setMounted(true);
@@ -45,31 +60,98 @@ export default function IndexPage() {
       setUser(currentUser);
     });
 
+    // Fetch initial stats
+    fetchStats();
+
+    // Set up real-time stats updates
+    const statsInterval = setInterval(fetchStats, 30000); // Update every 30 seconds
+
     return () => {
       clearInterval(timer);
+      clearInterval(statsInterval);
       unsubscribe();
     };
   }, []);
 
+  async function fetchStats() {
+    try {
+      // Get total topics
+      const topicsSnapshot = await getDocs(collection(db, "topics"));
+      const totalTopics = topicsSnapshot.size;
+      
+      // Get available topics
+      const availableTopicsQuery = query(collection(db, "topics"), where("taken", "==", false));
+      const availableTopicsSnapshot = await getDocs(availableTopicsQuery);
+      const availableTopics = availableTopicsSnapshot.size;
+
+      // Get total responses
+      const responsesSnapshot = await getDocs(collection(db, "responses"));
+      const totalResponses = responsesSnapshot.size;
+
+      // Calculate time left percentage using the constants
+      const now = new Date();
+      const { START_TIME, END_TIME } = TIMER_CONFIG;
+      
+      let timeLeftPercentage = 100;
+      
+      if (now < START_TIME) {
+        timeLeftPercentage = 100;
+      } else if (now >= END_TIME) {
+        timeLeftPercentage = 0;
+      } else {
+        const totalDuration = END_TIME.getTime() - START_TIME.getTime();
+        const timeLeft = END_TIME.getTime() - now.getTime();
+        timeLeftPercentage = Math.max(0, Math.min(100, (timeLeft / totalDuration) * 100));
+      }
+
+      setStats({
+        totalTopics,
+        availableTopics,
+        totalResponses,
+        timeLeftPercentage,
+      });
+    } catch (error) {
+      console.error("Error fetching stats:", error);
+    }
+  }
+
   function calculateTimeLeft(): TimeLeft {
     const now = new Date();
-    const startTime = new Date("2025-03-11T09:00:00"); // Set your start time here
-    const difference = startTime.getTime() - now.getTime();
-
-    if (difference <= 0) {
-      return { hours: 0, minutes: 0, seconds: 0 };
+    const { START_TIME, END_TIME } = TIMER_CONFIG;
+    
+    // If current time is before start time, return time until start
+    if (now < START_TIME) {
+      const difference = START_TIME.getTime() - now.getTime();
+      return {
+        hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
+        minutes: Math.floor((difference / 1000 / 60) % 60),
+        seconds: Math.floor((difference / 1000) % 60),
+      };
     }
-
-    return {
-      hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
-      minutes: Math.floor((difference / 1000 / 60) % 60),
-      seconds: Math.floor((difference / 1000) % 60),
-    };
+    
+    // If current time is between start and end time, return time until end
+    if (now >= START_TIME && now < END_TIME) {
+      const difference = END_TIME.getTime() - now.getTime();
+      return {
+        hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
+        minutes: Math.floor((difference / 1000 / 60) % 60),
+        seconds: Math.floor((difference / 1000) % 60),
+      };
+    }
+    
+    // If current time is after end time, return zeros
+    return { hours: 0, minutes: 0, seconds: 0 };
   }
 
   const handleEnter = () => {
     if (user) {
-      router.push("/topics");
+      // Check if user has already selected a topic
+      const savedState = localStorage.getItem(STORAGE_KEY);
+      if (savedState) {
+        router.push('/progress');
+      } else {
+        router.push("/topics");
+      }
     } else {
       alert("Please log in first!");
     }
@@ -88,83 +170,81 @@ export default function IndexPage() {
     setUser(null);
   };
 
-  const isFormOpen = timeLeft.hours === 0 && timeLeft.minutes === 0 && timeLeft.seconds === 0;
+  const isFormOpen = () => {
+    const now = new Date();
+    const { START_TIME, END_TIME } = TIMER_CONFIG;
+    return now >= START_TIME && now < END_TIME;
+  };
+
+  const formIsOpen = isFormOpen();
 
   return (
-    <div className="relative h-[calc(100vh-theme(spacing.16))] bg-background">
-      {/* Main content */}
-      <div className={`relative flex flex-col items-center justify-center h-full px-4 ${mounted ? 'opacity-100' : 'opacity-0'}`}>
-        <div className="relative w-full max-w-2xl">
-          <div className="bg-card/80 dark:bg-card/50 backdrop-blur-sm rounded-xl shadow-md p-6 sm:p-8">
-            <div className="text-center space-y-3 sm:space-y-4">
-              <div>
-                <h1 className="text-4xl sm:text-5xl font-extrabold text-primary pb-2">
-                  EL Topic Selection
-                </h1>
-                <div className="h-1 w-full bg-primary/20 rounded-full" />
-              </div>
-              <p className="text-muted-foreground text-lg">
-                Welcome to the Engineering Laboratory topic selection portal
-              </p>
-            </div>
+    <main className="min-h-[calc(100vh-4rem)] bg-gradient-to-b from-background via-background to-muted/20">
+      <div className="container py-8 px-4 sm:px-6 lg:px-8">
+        <WelcomeHeader />
 
-            <div className="my-8 sm:my-12">
-              <p className="text-center text-sm font-medium text-muted-foreground mb-4 sm:mb-6">
-                Time until form opens:
-              </p>
-              <div className="grid grid-cols-3 gap-2 sm:gap-6">
-                <TimerDisplay value={String(timeLeft.hours).padStart(2, '0')} label="Hours" />
-                <TimerDisplay value={String(timeLeft.minutes).padStart(2, '0')} label="Minutes" />
-                <TimerDisplay value={String(timeLeft.seconds).padStart(2, '0')} label="Seconds" />
-              </div>
-            </div>
-
-            {user ? (
-              <div className="space-y-4">
-                <div className="bg-card/90 dark:bg-card/50 rounded-lg p-4 text-center shadow-sm">
-                  <p className="text-sm text-muted-foreground">Signed in as</p>
-                  <p className="font-medium text-foreground">{user.displayName}</p>
-                </div>
-
-                {isFormOpen ? (
-                  <button
-                    onClick={handleEnter}
-                    className="w-full bg-primary text-primary-foreground px-6 py-3.5 rounded-lg font-medium 
-                             hover:bg-primary/90 transition-colors"
-                  >
-                    Enter Selection Portal →
-                  </button>
-                ) : (
-                  <button
-                    disabled
-                    className="w-full bg-muted text-muted-foreground px-6 py-3.5 rounded-lg font-medium 
-                             cursor-not-allowed"
-                  >
-                    Form Opens Soon
-                  </button>
-                )}
-
-                <button
-                  onClick={handleLogout}
-                  className="w-full px-6 py-3.5 rounded-lg font-medium border bg-card/50 
-                           text-muted-foreground hover:bg-card/80 transition-colors"
-                >
-                  Sign Out
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={handleLogin}
-                className="w-full bg-primary text-primary-foreground px-6 py-3.5 rounded-lg font-medium 
-                         hover:bg-primary/90 transition-colors"
-              >
-                Sign in with Google →
-              </button>
-            )}
-          </div>
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
+          <StatsCard
+            title="Total Topics"
+            value={stats.totalTopics}
+            icon={<BookOpen className="w-5 h-5 text-primary" />}
+            delay={0.1}
+          />
+          <StatsCard
+            title="Available Topics"
+            value={stats.availableTopics}
+            icon={<CheckCircle className="w-5 h-5 text-primary" />}
+            delay={0.2}
+          />
+          <StatsCard
+            title="Teams Registered"
+            value={stats.totalResponses}
+            icon={<Users className="w-5 h-5 text-primary" />}
+            delay={0.3}
+          />
+          <StatsCard
+            title="Time Remaining"
+            value={`${timeLeft.hours}h ${timeLeft.minutes}m ${timeLeft.seconds}s`}
+            icon={<Clock className="w-5 h-5 text-primary" />}
+            delay={0.4}
+          />
         </div>
+
+        {/* Timer Display */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="max-w-4xl mx-auto mb-12"
+        >
+
+          <div className="grid grid-cols-3 gap-4 sm:gap-6">
+            <TimerDisplay 
+              value={String(timeLeft.hours).padStart(2, '0')} 
+              label="Hours" 
+            />
+            <TimerDisplay 
+              value={String(timeLeft.minutes).padStart(2, '0')} 
+              label="Minutes" 
+            />
+            <TimerDisplay 
+              value={String(timeLeft.seconds).padStart(2, '0')} 
+              label="Seconds" 
+            />
+          </div>
+        </motion.div>
+
+        {/* Auth Section */}
+        <AuthSection
+          user={user}
+          isFormOpen={formIsOpen}
+          onEnter={handleEnter}
+          onLogin={handleLogin}
+          onLogout={handleLogout}
+        />
       </div>
-    </div>
+    </main>
   );
 }
 
