@@ -184,7 +184,7 @@ export default function IndexPage() {
         <WelcomeHeader />
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
+        {/*<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
           <StatsCard
             title="Total Topics"
             value={stats.totalTopics}
@@ -209,7 +209,7 @@ export default function IndexPage() {
             icon={<Clock className="w-5 h-5 text-primary" />}
             delay={0.4}
           />
-        </div>
+        </div>*/}
 
         {/* Timer Display */}
         <motion.div

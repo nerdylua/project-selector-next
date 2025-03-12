@@ -2,7 +2,7 @@
 
 // Timer Configuration
 export const TIMER_CONFIG = {
-  START_TIME: new Date("2025-03-12T19:30:00"), // 7 PM today
+  START_TIME: new Date("2025-03-12T20:30:00"), // 8:30 PM today
   END_TIME: new Date("2025-03-13T9:00:00"),   // 9 AM tomorrow
 } as const;
 
