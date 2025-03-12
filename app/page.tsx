@@ -44,6 +44,15 @@ export default function IndexPage() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedState = localStorage.getItem(STORAGE_KEY);
+      const now = new Date();
+      const { START_TIME, END_TIME } = TIMER_CONFIG;
+
+      // If outside the time window, redirect to home
+      if (now < START_TIME || now >= END_TIME) {
+        router.push('/');
+        return;
+      }
+
       if (savedState) {
         router.push('/progress');
       }
