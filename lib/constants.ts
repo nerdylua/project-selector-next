@@ -2,43 +2,13 @@
 
 // Timer Configuration
 export const TIMER_CONFIG = {
-  START_TIME: (() => {
-    const date = new Date();
-    date.setHours(1, 0, 0, 0); // 1:00 AM today
-    return date;
-  })(),
-  END_TIME: (() => {
-    const date = new Date();
-    date.setDate(date.getDate()); // Tomorrow
-    date.setHours(17, 0, 0, 0); // 5:00 PM today
-    return date;
-  })(),
+  START_TIME: new Date(0),
+  END_TIME: new Date(8640000000000000) 
 } as const;
 
-// Format the dates for display
-export const FORMATTED_START_TIME = TIMER_CONFIG.START_TIME.toLocaleString('en-IN', {
-  hour: 'numeric',
-  minute: 'numeric',
-  hour12: true,
-  timeZone: 'Asia/Kolkata'
-});
+export const FORMATTED_START_TIME = "Form is always open";
+export const FORMATTED_END_TIME = "∞"; 
 
-export const FORMATTED_END_TIME = TIMER_CONFIG.END_TIME.toLocaleString('en-IN', {
-  hour: 'numeric',
-  minute: 'numeric',
-  hour12: true,
-  timeZone: 'Asia/Kolkata'
-});
-
-const isFormOpen = () => {
-  const now = new Date();
-  const { START_TIME, END_TIME } = TIMER_CONFIG;
-  // Convert all times to timestamps for comparison
-  const nowTime = now.getTime();
-  const startTime = START_TIME.getTime();
-  const endTime = END_TIME.getTime();
-
-  return nowTime >= startTime && nowTime < endTime;
-};
+const isFormOpen = () => true;
 
 const formIsOpen = isFormOpen();

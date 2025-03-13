@@ -1,12 +1,14 @@
+'use client';
+
 import { motion } from "framer-motion";
 import { Card } from "@/components/ui/card";
 
 interface TimerDisplayProps {
-  value: string;
-  label: string;
+  value?: string;
+  label?: string;
 }
 
-export function TimerDisplay({ value, label }: TimerDisplayProps) {
+export function TimerDisplay({ value = "∞", label = "Form is open" }: TimerDisplayProps) {
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
@@ -26,4 +28,4 @@ export function TimerDisplay({ value, label }: TimerDisplayProps) {
       </Card>
     </motion.div>
   );
-} 
+}
